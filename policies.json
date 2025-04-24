@@ -2,9 +2,9 @@
   "bindings": [
     {
       "members": [
-        
+        ""
       ],
-      "role": "roles/storage.admin"
+      "role": "roles/storage.objectAdmin"
     }
   ]
 }

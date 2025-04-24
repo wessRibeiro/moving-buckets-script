@@ -8,9 +8,9 @@ SOURCE_BUCKET=""
 TEMP_BUCKET=""
 PROJECT_ORIGEM=""
 PROJECT_DESTINO=""
-LOCATION_ORIGEM="us-east1"
-LOCATION_DESTINO="southamerica-east1"
-IAM_POLICY_FILE="policy.json"
+LOCATION_ORIGEM=""
+LOCATION_DESTINO=""
+IAM_POLICY_FILE="policies.json"
 
 # CORES PARA LOG
 GREEN='\033[0;32m'
@@ -30,17 +30,18 @@ error_exit() {
   echo -e "\033[0;31mErro: $1. Encerrando.\033[0m"
   exit 1
 }
+
 # Verifica se o bucket existe
 bucket_exists() {
-  local project_id="$PROJECT_DESTINO"
-  local bucket_name="$TEMP_BUCKET"
+  local project_id="$1"
+  local bucket_name="$2"
   
   gcloud storage buckets list --project="$project_id" \
     --filter="name:$bucket_name" \
     --format="value(name)" | grep -q "^$bucket_name$"
 }
 
-read -p "Tem certeza que deseja remover o bucket 'gs://$SOURCE_BUCKET'? Digite 'yes' para confirmar: " CONFIRM
+read -p "Tem certeza que deseja remover o bucket '$PROJECT_ORIGEM/gs://$SOURCE_BUCKET'? Digite 'yes' para confirmar: " CONFIRM
 if [[ "$CONFIRM" != "yes" ]]; then
   error "Operação cancelada pelo usuário. O bucket não foi removido."
 fi
@@ -56,8 +57,8 @@ fi
 # [6/9] Verificar e Recriação do bucket original no novo projeto
 log "[6/9] Verificando e recriando bucket original no novo projeto..."
 
-if bucket_exists "$PROJECT_DESTINO" "$SOURCE_BUCKET"; then
-  echo -e "\n${GREEN}✅ Bucket ja foi movido: gs://$TEMP_BUCKET ${NC}"
+if bucket_exists "$PROJECT_ORIGEM" "$SOURCE_BUCKET"; then
+  echo -e "\n${GREEN}✅ Bucket ja foi removido: gs://$SOURCE_BUCKET ${NC}"
 else
   CMD="gcloud storage buckets create gs://$SOURCE_BUCKET --project=$PROJECT_DESTINO --location=$LOCATION_DESTINO --lifecycle-file=lifecycle.json"
   log "\nExecutando: $CMD"
@@ -66,13 +67,13 @@ else
 fi
 
 # [6.1/9] Exportar e aplicar política de IAM do bucket temporario
-log "[¨6.1/9] Exportando política de IAM do bucket temporario..."
+log "[6.1/9] Exportando política de IAM do bucket temporario..."
 
 # Exporta a política atual do bucket temporario
 log "Executando: gcloud storage buckets get-iam-policy gs://$TEMP_BUCKET --format=json > $IAM_POLICY_FILE"
 gcloud storage buckets get-iam-policy gs://$TEMP_BUCKET --format=json > "$IAM_POLICY_FILE" || error "Falha ao obter IAM policy"
 
-warn "[6.2/9] *** ATENÇÃO: Verifique as polices no arquivo $IAM_POLICY_FILE antes de aplica-las no $SOURCE_BUCKET ***"
+warn "[6.2/9] *** ATENÇÃO: Verifique as polices no arquivo $IAM_POLICY_FILE antes de aplica-las no gs://$SOURCE_BUCKET ***"
 read -p "Pressione ENTER para continuar após a vericar."
 
 # Verificar se o arquivo policy.json existe
@@ -100,7 +101,7 @@ jq -c '.bindings[]' "$IAM_POLICY_FILE" | while read -r binding; do
 done
 
 # [7/9] Copiando dados do bucket temporario para o original com estrutura de pastas
-echo -e "${GREEN}[7/9] Copiando dados do bucket temporário para o original...${NC}"
+echo -e "\n${GREEN}[7/9] Copiando dados do bucket temporário para o original...${NC}"
 gcloud storage cp --recursive gs://$TEMP_BUCKET/* gs://$SOURCE_BUCKET
 echo -e "\n${GREEN}✅ Cópia concluída com sucesso.${NC}"
 
@@ -119,7 +120,7 @@ if [[ "$CONFIRM" != "yes" ]]; then
 fi
 
 # [9/9] Remoção do bucket original
-log "[9/9] Removendo bucket $TEMP_BUCKET..."
+log "[9/9] Removendo bucket gs://$TEMP_BUCKET..."
 if bucket_exists "$PROJECT_DESTINO" "$TEMP_BUCKET"; then
   CMD="gcloud storage rm --recursive gs://$TEMP_BUCKET"
   log "Executando: $CMD"
