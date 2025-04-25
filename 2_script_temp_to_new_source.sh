@@ -6,10 +6,10 @@ set -e
 #SETTINGS
 SOURCE_BUCKET=""
 TEMP_BUCKET=""
-PROJECT_ORIGEM=""
-PROJECT_DESTINO=""
-LOCATION_ORIGEM=""
-LOCATION_DESTINO=""
+SOURCE_PROJECT=""
+DESTINATION_PROJECT=""
+SOURCE_LOCATION=""
+DESTINATION_LOCATION=""
 IAM_POLICY_FILE="policies.json"
 
 # CORES PARA LOG
@@ -41,14 +41,14 @@ bucket_exists() {
     --format="value(name)" | grep -q "^$bucket_name$"
 }
 
-read -p "Tem certeza que deseja remover o bucket '$PROJECT_ORIGEM/gs://$SOURCE_BUCKET'? Digite 'yes' para confirmar: " CONFIRM
+read -p "Tem certeza que deseja remover o bucket '$SOURCE_PROJECT/gs://$SOURCE_BUCKET'? Digite 'yes' para confirmar: " CONFIRM
 if [[ "$CONFIRM" != "yes" ]]; then
   error "Operação cancelada pelo usuário. O bucket não foi removido."
 fi
 
 # [5/9] Remoção do bucket original
 log "[5/9] Removendo bucket original..."
-if bucket_exists "$PROJECT_ORIGEM" "$SOURCE_BUCKET"; then
+if bucket_exists "$SOURCE_PROJECT" "$SOURCE_BUCKET"; then
   CMD="gcloud storage rm --recursive gs://$SOURCE_BUCKET"
   log "Executando: $CMD"
   eval "$CMD"
@@ -57,10 +57,10 @@ fi
 # [6/9] Verificar e Recriação do bucket original no novo projeto
 log "[6/9] Verificando e recriando bucket original no novo projeto..."
 
-if bucket_exists "$PROJECT_ORIGEM" "$SOURCE_BUCKET"; then
+if bucket_exists "$SOURCE_PROJECT" "$SOURCE_BUCKET"; then
   echo -e "\n${GREEN}✅ Bucket ja foi removido: gs://$SOURCE_BUCKET ${NC}"
 else
-  CMD="gcloud storage buckets create gs://$SOURCE_BUCKET --project=$PROJECT_DESTINO --location=$LOCATION_DESTINO --lifecycle-file=lifecycle.json"
+  CMD="gcloud storage buckets create gs://$SOURCE_BUCKET --project=$DESTINATION_PROJECT --location=$DESTINATION_LOCATION --lifecycle-file=lifecycle.json"
   log "\nExecutando: $CMD"
   eval "$CMD"
   echo -e "\n${GREEN}✅ criacao concluída com sucesso.${NC}"
@@ -121,7 +121,7 @@ fi
 
 # [9/9] Remoção do bucket original
 log "[9/9] Removendo bucket gs://$TEMP_BUCKET..."
-if bucket_exists "$PROJECT_DESTINO" "$TEMP_BUCKET"; then
+if bucket_exists "$DESTINATION_PROJECT" "$TEMP_BUCKET"; then
   CMD="gcloud storage rm --recursive gs://$TEMP_BUCKET"
   log "Executando: $CMD"
   eval "$CMD"
