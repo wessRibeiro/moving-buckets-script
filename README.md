@@ -1,73 +1,72 @@
 # 📦 moving-buckets-script
 
-Este projeto contém dois scripts bash que automatizam a migração de buckets no Google Cloud Storage entre projetos, com foco em manter a estrutura, dados e permissões de forma segura, **sem downtime perceptível para a aplicação**.
+This project contains two Bash scripts that automate the migration of buckets in Google Cloud Storage between projects, focusing on preserving structure, data, and permissions securely — without noticeable downtime for the application.
 
 ---
 
-## 🗂️ Estrutura do projeto
+## 🗂️ Project Structure
 
 ```bash
 .
-├── 1_script_source_to_temp.sh       # Copia dados do bucket original para um bucket temporário
-├── 2_script_temp_to_new_source.sh   # Restaura os dados do bucket temporário para um bucket recriado
-├── lifecycle.json                   # Define regra de ciclo de vida (exclusão de objetos após 365 dias)
-├── policies.json                    # Contém as permissões extraídas e aplicadas aos buckets
+├── 1_script_source_to_temp.sh       # Copies data from the original bucket to a temporary bucket
+├── 2_script_temp_to_new_source.sh   # Restores data from the temporary bucket to a recreated bucket
+├── lifecycle.json                   # Defines lifecycle rule (deletes objects after 365 days)
+├── policies.json                    # Contains extracted and applied IAM permissions for buckets
+```
 
+## ⚙️ Prerequisites
 
-## ⚙️ Pré-requisitos
-
-- Ter o SDK do Google Cloud (`gcloud`) instalado e autenticado.
-- Ter o `jq` instalado para leitura de arquivos JSON.
-- Permissões suficientes nos projetos de origem e destino (`IAM Admin` ou `Storage Admin`).
-
+- Have the Google Cloud SDK (gcloud) installed and authenticated.
+- Have jq installed for reading JSON files.
+- Sufficient permissions in both source and destination projects (IAM Admin or Storage Admin roles).
+  
 ---
 
-## 🚀 Como usar
+## 🚀 How to Use
 
-## Etapa 1️⃣: Copiar dados do bucket original para bucket temporário
+## Step 1️⃣: Copy data from the original bucket to a temporary bucket
 
-Execute o script:
+Run the script:
 
 ```bash
 bash 1_script_source_to_temp.sh
 ```
 
-Esse script irá:
-
-- Verificar se o bucket temporário existe, e criar caso não.
-- Exportar e aplicar as permissões IAM do bucket original no temporário.
-- Copiar os dados do bucket original para o bucket temporário.
-- Solicitar a troca de referência da aplicação para o bucket temporário.
-- Fazer uma sincronização final para garantir consistência.
+This script will:
+- Check if the temporary bucket exists and create it if not.
+- Export and apply the IAM permissions from the original bucket to the temporary bucket.
+- Copy the data from the original bucket to the temporary bucket.
+- Prompt you to point the application to the temporary bucket.
+- Perform a final sync to ensure data consistency.
 
 ---
 
-## Etapa 2️⃣: Restaurar os dados no novo bucket (recriado com mesmo nome)
+## Step 2️⃣: Restore the data to the new bucket (recreated with the same name)
 
-Execute o script:
+Run the script:
 
 ```bash
 bash 2_script_temp_to_new_source.sh
 ```
 
-Esse script irá:
+This script will:
 
-- Solicitar confirmação para remover o bucket original.
-- Recriar o bucket original com as mesmas configurações.
-- Aplicar novamente as permissões IAM exportadas do temporário.
-- Copiar os dados do bucket temporário para o bucket recriado.
-- Solicitar a troca de referência da aplicação de volta para o bucket original.
-- Realizar uma sincronização final dos dados.
-- Solicitar confirmação e excluir o bucket temporário.
+- Request confirmation to delete the original bucket.
+- Recreate the original bucket with the same settings in the new project.
+- Reapply the IAM permissions exported from the temporary bucket.
+- Copy the data from the temporary bucket to the newly recreated original bucket.
+- Prompt you to point the application back to the original bucket.
+- Perform a final sync of the data.
+- Request confirmation to delete the temporary bucket.
 
 ---
 
-## 🛡️ Segurança e confiabilidade
+## 🛡️ Security and Reliability
 
-- Os scripts exigem confirmação explícita (`yes`) antes de remover qualquer bucket.
-- Todas as permissões do bucket original são exportadas para `policies.json` e reaplicadas via `gcloud storage buckets add-iam-policy-binding`.
-- A estrutura dos arquivos dentro dos buckets é preservada.
-- Há sincronizações finais para garantir que nenhuma alteração seja perdida durante o processo.
+- The scripts require explicit confirmation (yes) before deleting any bucket.
+- All permissions from the original bucket are exported to policies.json and reapplied using gcloud storage buckets add-iam-policy-binding.
+- The folder and file structure inside the buckets is preserved.
+- Final synchronizations ensure that no changes are lost during the process.
 
 ---
 
@@ -85,17 +84,18 @@ Esse script irá:
 ```
 
 
-Essa política é aplicada nos buckets novos para excluir objetos com mais de 365 dias e pode ser alterada conforme necessidade.
+This lifecycle rule is applied to the new buckets to delete objects older than 365 days.
+It can be modified according to your project’s needs.
 
 ---
 
-## 🧾 Sobre o arquivo `policies.json`
+## 🧾 About the policies.json File
 
-O arquivo `policies.json` é um **exemplo de estrutura de política IAM** gerado com base nas permissões do bucket original.
+The policies.json file is an example structure of an IAM policy generated based on the permissions of the original bucket.
 
-À medida que os scripts são executados, esse arquivo pode ser **editado manualmente** para aplicar apenas as permissões que forem realmente necessárias no novo bucket.
+As the scripts are executed, this file can be manually edited to apply only the necessary permissions to the new bucket.
 
-### Exemplo de estrutura:
+### Example structure:
 
 ```json
 {
@@ -111,21 +111,20 @@ O arquivo `policies.json` é um **exemplo de estrutura de política IAM** gerado
 ```
 ---
 
-## ℹ️ Observações
+## ℹ️ Notes
 
-- Certifique-se de preencher as variáveis `SOURCE_BUCKET`, `TEMP_BUCKET`, `PROJECT_ORIGEM`, `PROJECT_DESTINO`, `LOCATION_ORIGEM`, e `LOCATION_DESTINO` nos dois scripts antes de executá-los.
-- O campo `"members"` no `policies.json` deve ser preenchido corretamente com os membros válidos do IAM (usuários, contas de serviço, grupos etc.).
-
+- Make sure to fill in the variables `SOURCE_BUCKET`, `TEMP_BUCKET`, `SOURCE_PROJECT`, `DESTINATION_PROJECT`, `SOURCE_LOCATION`, and `DESTINATION_LOCATION` in both scripts before running them.
+- The  `"members"` field inside `policies.json` must be filled correctly with valid IAM members (users, service accounts, groups, etc.).
 ---
 
-## ✅ Exemplo de uso completo
+## ✅ Full Example of Usage
 
 ```bash
 # Etapa 1
-vim 1_script_source_to_temp.sh  # configure as variáveis
+vim 1_script_source_to_temp.sh   # configure your variables
 bash 1_script_source_to_temp.sh
 
 # Etapa 2
-vim 2_script_temp_to_new_source.sh  # configure as variáveis
+vim 2_script_temp_to_new_source.sh  # configure your variables
 bash 2_script_temp_to_new_source.sh
 ```
