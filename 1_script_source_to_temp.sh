@@ -6,10 +6,10 @@ set -e
 #SETTINGS
 SOURCE_BUCKET=""
 TEMP_BUCKET=""
-PROJECT_ORIGEM=""
-PROJECT_DESTINO=""
-LOCATION_ORIGEM=""
-LOCATION_DESTINO=""
+SOURCE_PROJECT=""
+DESTINATION_PROJECT=""
+SOURCE_LOCATION=""
+DESTINATION_LOCATION=""
 IAM_POLICY_FILE="policies.json"
 
 # CORES PARA LOG
@@ -33,7 +33,7 @@ error_exit() {
 
 # Verifica se o bucket existe
 bucket_exists() {
-  local project_id="$PROJECT_DESTINO"
+  local project_id="$DESTINATION_PROJECT"
   local bucket_name="$TEMP_BUCKET"
   
   gcloud storage buckets list --project="$project_id" \
@@ -44,10 +44,10 @@ bucket_exists() {
 
 # [1/9] Criar bucket temporário se não existir
 log "[1/9] Verificando e criando bucket temporário..."
-if bucket_exists "$PROJECT_DESTINO" "$TEMP_BUCKET"; then
+if bucket_exists "$DESTINATION_PROJECT" "$TEMP_BUCKET"; then
   echo -e "\n${GREEN}✅ Bucket temporário já existe: gs://$TEMP_BUCKET ${NC}"
 else
-  CMD="gcloud storage buckets create gs://$TEMP_BUCKET --project=$PROJECT_DESTINO --location=$LOCATION_DESTINO --lifecycle-file=lifecycle.json"
+  CMD="gcloud storage buckets create gs://$TEMP_BUCKET --project=$DESTINATION_PROJECT --location=$DESTINATION_LOCATION --lifecycle-file=lifecycle.json"
   log "\nExecutando: $CMD"
   eval "$CMD"
   echo -e "\n${GREEN}✅ criacao concluída com sucesso.${NC}"
