@@ -27,11 +27,11 @@ warn() {
 }
 
 error_exit() {
-  echo -e "\033[0;31mErro: $1. Encerrando.\033[0m"
+  echo -e "\033[0;31mErro: $1. Exiting.\033[0m"
   exit 1
 }
 
-# Verifica se o bucket existe
+# Check if the bucket exists
 bucket_exists() {
   local project_id="$DESTINATION_PROJECT"
   local bucket_name="$TEMP_BUCKET"
@@ -42,61 +42,58 @@ bucket_exists() {
 }
 
 
-# [1/9] Criar bucket temporário se não existir
-log "[1/9] Verificando e criando bucket temporário..."
+# [1/9] Create temporary bucket if it doesn't exist
+log "[1/9] Checking and creating temporary bucket..."
 if bucket_exists "$DESTINATION_PROJECT" "$TEMP_BUCKET"; then
-  echo -e "\n${GREEN}✅ Bucket temporário já existe: gs://$TEMP_BUCKET ${NC}"
+  echo -e "\n${GREEN}✅ Temporary bucket already exists: gs://$TEMP_BUCKET ${NC}"
 else
   CMD="gcloud storage buckets create gs://$TEMP_BUCKET --project=$DESTINATION_PROJECT --location=$DESTINATION_LOCATION --lifecycle-file=lifecycle.json"
-  log "\nExecutando: $CMD"
+  log "\nExecuting: $CMD"
   eval "$CMD"
-  echo -e "\n${GREEN}✅ criacao concluída com sucesso.${NC}"
+  echo -e "\n${GREEN}✅ Bucket successfully created.${NC}"
 fi
 
-# [1.2/9] Exportar e aplicar política de IAM do bucket original
-log "[1.2/9] Exportando política de IAM do bucket original..."
+# [1.2/9] Export and apply IAM policy from the original bucket
+log "[1.2/9] Exporting IAM policy from the original bucket..."
 
-# Exporta a política atual do bucket original
-log "Executando: gcloud storage buckets get-iam-policy gs://$SOURCE_BUCKET --format=json > $IAM_POLICY_FILE"
-gcloud storage buckets get-iam-policy gs://$SOURCE_BUCKET --format=json > "$IAM_POLICY_FILE" || error "Falha ao obter IAM policy"
+log "Executing: gcloud storage buckets get-iam-policy gs://$SOURCE_BUCKET --format=json > $IAM_POLICY_FILE"
+gcloud storage buckets get-iam-policy gs://$SOURCE_BUCKET --format=json > "$IAM_POLICY_FILE" || error "Failed to retrieve IAM policy"
 
-warn "[1.2/9] *** ATENÇÃO: Verifique as polices no arquivo $IAM_POLICY_FILE antes de aplica-las no $TEMP_BUCKET ***"
-read -p "Pressione ENTER para continuar após a vericar."
+warn "[1.2/9] ⚠️ ATTENTION: Review the policies in $IAM_POLICY_FILE before applying them to $TEMP_BUCKET"
+read -p "Press ENTER to continue after reviewing."
 
-# Verificar se o arquivo policy.json existe
+# Check if policy.json exists
 if [[ ! -f "$IAM_POLICY_FILE" ]]; then
-  echo "Erro: O arquivo $IAM_POLICY_FILE não foi encontrado!"
+  echo "Erro: O arquivo $IAM_POLICY_FILE was not found!"
   exit 1
 fi
 
-# [1.3/9] aplicar política de IAM do bucket original
-log "[1.3/9]Executando bindings"
-# Iterar sobre cada binding no arquivo JSON
+# [1.3/9] Apply IAM policy from the original bucket
+log "[1.3/9] Applying IAM bindings..."
+# Iterate over each binding in the JSON file
 jq -c '.bindings[]' "$IAM_POLICY_FILE" | while read -r binding; do
   ROLE=$(echo "$binding" | jq -r '.role')
   MEMBERS=$(echo "$binding" | jq -r '.members[]')
-
-  # Para cada membro dentro de um binding, adicionamos a política
+  # For each member in the binding, apply the policy
   for MEMBER in $MEMBERS; do
-    echo "Aplicando política: $MEMBER com a função $ROLE"
+    echo "Applying policy: $MEMBER with role $ROLE"
     
-    # Executa o comando add-iam-policy-binding
     gcloud storage buckets add-iam-policy-binding gs://$TEMP_BUCKET \
       --member="$MEMBER" \
       --role="$ROLE" || { echo "Erro ao adicionar política IAM para $MEMBER com a função $ROLE"; exit 1; }
   done
 done
 
-# [2/9] Copiando dados do bucket original para o temporário com estrutura de pastas
-echo -e "${GREEN}[2/9] Copiando dados do bucket original para o temporário...${NC}"
+# [2/9] Copy data from original to temporary bucket (preserving folder structure)
+echo -e "${GREEN}[2/9] Copying data from original bucket to temporary bucket...${NC}"
 gcloud storage cp --recursive gs://$SOURCE_BUCKET/* gs://$TEMP_BUCKET
-echo -e "\n${GREEN}✅ Cópia concluída com sucesso.${NC}"
+echo -e "\n${GREEN}✅ Copy completed successfully.${NC}"
 
-warn "[3/9] *** ATENÇÃO: Troque a referência de bucket da aplicação de $SOURCE_BUCKET para $TEMP_BUCKET ***"
-read -p "Pressione ENTER para continuar após a troca."
+warn "[3/9] ⚠️ ATTENTION: Update the application bucket reference from $SOURCE_BUCKET to $TEMP_BUCKET"
+read -p "Press ENTER to continue after updating."
 
-# [4/9] Sincronização final para garantir consistência
-log "[4/9] Sincronizando novamente para garantir consistência..."
+# [4/9] Final sync to ensure consistency
+log "[4/9] Syncing again to ensure consistency..."
 CMD="gcloud storage rsync -r gs://$SOURCE_BUCKET gs://$TEMP_BUCKET"
-log "\nExecutando: $CMD"
+log "\nExecuting: $CMD"
 eval "$CMD"
